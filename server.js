@@ -3,10 +3,9 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const { generateAccessToken, generateRefreshToken, authenticateToken, verifyRefreshToken } = require('./utilities/jwt');
-// const databaseAPI = require('./models/database');
-// const { userExists, createNewUser } = require('./utilities/loginFunctions');
 
 const userService = require('./models/userModel');
+const tokenService = require('./models/tokenModel');
 
 dotenv.config();
 const app = express();
@@ -42,7 +41,9 @@ app.post('/login', async (req, res) => {
         const accessToken = generateAccessToken({ username: user.username });
         const refreshToken = generateRefreshToken({ username: user.username });
 
-        refreshTokens.push(refreshToken);
+        const tokenCreated = await tokenService.saveRefreshToken(user.username, refreshToken);
+        console.log(tokenCreated);
+
         console.log({ user: user.username, token: accessToken, refreshToken: refreshToken });
         res.render('dashboard', { user: user.username, token: accessToken, refreshToken: refreshToken });
     } catch (err) {
@@ -78,7 +79,9 @@ app.post('/signup', async (req, res) => {
         const accessToken = generateAccessToken({ username: newUser.username });
         const refreshToken = generateRefreshToken({ username: newUser.username });
 
-        refreshTokens.push(refreshToken);
+        const tokenCreated = await tokenService.saveRefreshToken(user.username, refreshToken);
+        console.log(tokenCreated);
+
         console.log({ user: newUser.username, token: accessToken, refreshToken: refreshToken });
         res.render('dashboard', { user: newUser.username, token: accessToken, refreshToken: refreshToken });
     } catch (err) {
@@ -91,7 +94,9 @@ app.post('/signup', async (req, res) => {
 app.post('/token', async (req, res) => {
     const { token: refreshToken } = req.body;
     if (!refreshToken) return res.sendStatus(401);
-    if (!refreshTokens.includes(refreshToken)) return res.sendStatus(403);
+
+    const tokenExists = await tokenService.getRefreshToken(refreshToken);
+    if (!tokenExists) return res.sendStatus(403); 
 
     try {
         const user = await verifyRefreshToken(refreshToken);
@@ -103,8 +108,8 @@ app.post('/token', async (req, res) => {
 });
 
 // Logout (Delete Refresh Token)
-app.post('/logout', (req, res) => {
-    refreshTokens = refreshTokens.filter(token => token !== req.body.token);
+app.post('/logout', async (req, res) => {
+    await tokenService.deleteRefreshToken(req.body.token);
     res.redirect('/login');
 });
 
