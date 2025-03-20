@@ -23,12 +23,14 @@ const tokenService = {
     // Delete a refresh token (on logout)
     async deleteRefreshToken(refreshToken) {
         try {
-            const tokenEntry = await getRefreshToken(refreshToken);
+            const tokenEntry = await this.getRefreshToken(refreshToken);
             if (tokenEntry) {
-                await restdb.delete(`/tokens/${tokenEntry._id}`);
+                const response = await restdb.delete(`/tokens/${tokenEntry._id}`);
+                return response.data;
             }
         } catch (error) {
             console.error('Error deleting refresh token:', error);
+            return null;
         }
     }
 }

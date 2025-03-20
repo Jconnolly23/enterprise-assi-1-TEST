@@ -13,13 +13,21 @@ function generateRefreshToken(user) {
 
 // Verify Access Token Middleware
 function authenticateToken(req, res, next) {
+    console.log('Authenticating token');
+
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     
-    if (!token) return res.sendStatus(401);
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required' });
+    }
 
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403);
+        if (err) {
+            console.log('token expired');
+            return res.status(403).json({ error: 'Access token expired' }); 
+        }
+        console.log('token accepted');
         req.user = user;
         next();
     });

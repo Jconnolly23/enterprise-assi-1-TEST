@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
 const { generateAccessToken, generateRefreshToken, authenticateToken, verifyRefreshToken } = require('./utilities/jwt');
 
 const userService = require('./models/userModel');
@@ -17,6 +18,10 @@ app.set('views', path.join(__dirname, 'views'));
 
 let refreshTokens = [];
 
+app.get('/', (req, res) => {
+    res.redirect('/login');
+});
+
 // Serve Login Page
 app.get('/login', (req, res) => {
     res.render('login');
@@ -28,14 +33,14 @@ app.post('/login', async (req, res) => {
     const user = await userService.findUserByUsername(username);
 
     if (!user) {
-        return res.render('login', { error: 'User not found' });
+        return res.status(400).send({ error: 'User not found' });
     }
 
     try {
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
             console.log("Invalid password attempt for user:", username); // Debugging
-            return res.render('login', { error: 'Invalid password' });
+            return res.status(400).send({ error: 'Invalid password' });
         }
 
         const accessToken = generateAccessToken({ username: user.username });
@@ -45,10 +50,10 @@ app.post('/login', async (req, res) => {
         console.log(tokenCreated);
 
         console.log({ user: user.username, token: accessToken, refreshToken: refreshToken });
-        res.render('dashboard', { user: user.username, token: accessToken, refreshToken: refreshToken });
+        res.status(200).send({ user: user.username, token: accessToken, refreshToken: refreshToken });
     } catch (err) {
         console.error("Login error:", err);
-        res.status(500).send("Internal Server Error");
+        res.status(500).send({ error: "Internal Server Error" });
     }
 });
 
@@ -63,13 +68,13 @@ app.post('/signup', async (req, res) => {
 
     // Check if passwords match
     if (password !== confirmPassword) {
-        return res.render('signup', { error: 'Passwords do not match' });
+        return res.status(400).send({ error: 'Passwords do not match' });
     }
 
     // Check if username already exists
     const user = await userService.findUserByUsername(username);
     if (user) {
-        return res.render('signup', { error: 'Username already taken' });
+        return res.status(400).send({ error: 'Username already taken' });
     }
 
     try {
@@ -79,48 +84,55 @@ app.post('/signup', async (req, res) => {
         const accessToken = generateAccessToken({ username: newUser.username });
         const refreshToken = generateRefreshToken({ username: newUser.username });
 
-        const tokenCreated = await tokenService.saveRefreshToken(user.username, refreshToken);
+        const tokenCreated = await tokenService.saveRefreshToken(newUser.username, refreshToken);
         console.log(tokenCreated);
 
         console.log({ user: newUser.username, token: accessToken, refreshToken: refreshToken });
-        res.render('dashboard', { user: newUser.username, token: accessToken, refreshToken: refreshToken });
+        res.status(200).send({ user: newUser.username, token: accessToken, refreshToken: refreshToken });
     } catch (err) {
         console.error('Signup error:', err);
-        res.status(500).send('Internal Server Error');
+        res.status(500).send({ error: 'Internal Server Error' });
     }
 });
 
-// Refresh Token Route
-app.post('/token', async (req, res) => {
-    const { token: refreshToken } = req.body;
-    if (!refreshToken) return res.sendStatus(401);
+app.post('/refresh-token', async (req, res) => {
+    const refreshToken = req.body.refreshToken;
+    if (!refreshToken) return res.status(401).json({ error: "Refresh token required" });
 
+    // Check if refresh token is stored in DB
     const tokenExists = await tokenService.getRefreshToken(refreshToken);
-    if (!tokenExists) return res.sendStatus(403); 
+    if (!tokenExists) return res.status(403).json({ error: "Invalid refresh token" });
 
-    try {
-        const user = await verifyRefreshToken(refreshToken);
+    // Verify refresh token
+    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: "Invalid refresh token" });
+
         const newAccessToken = generateAccessToken({ username: user.username });
         res.json({ accessToken: newAccessToken });
-    } catch {
-        res.sendStatus(403);
-    }
+    });
 });
 
 // Logout (Delete Refresh Token)
 app.post('/logout', async (req, res) => {
-    await tokenService.deleteRefreshToken(req.body.token);
-    res.redirect('/login');
-});
-
-// Secure Route (Example)
-app.get('/protected', authenticateToken, (req, res) => {
-    res.json({ message: `Welcome ${req.user.username}, this is a protected route.` });
+    const tokenDeleted = await tokenService.deleteRefreshToken(req.body.refreshToken);
+    try {
+        if (!tokenDeleted) {
+            return res.status(400).json({ error: 'There was an issue logging you out' });
+        }
+        return res.status(200).json({ message: 'Logged out successfully' });
+    } catch(err) {
+        console.error("Logout error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 
 // Render Dashboard
 app.get('/dashboard', (req, res) => {
-    res.render('dashboard', { user: 'Guest', token: '', refreshToken: '' });
+    res.render('dashboard');
+});
+
+app.post('/test', authenticateToken, (req, res) => {
+    res.status(200).send({ message: 'Successful' });
 });
 
 app.listen(3000, () => console.log('Server running on port 3000'));
