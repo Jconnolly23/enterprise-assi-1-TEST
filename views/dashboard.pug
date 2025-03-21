@@ -4,23 +4,31 @@ block content
     h2 Welcome, <span id="usernameDisplay">Guest</span>!
     
     a.btn.btn-danger(onclick="") Logout
-    button(onclick="testFunction()") Test
+    br
+    a(href="/newbook") new book
+    br
+    a(href="/returnbook") return
+    br
+    a(href="/getbooksforuser") get books for user
 
     script.
-        async function testFunction() {
-            const data = { text: 'Hello John' };
+        document.addEventListener("DOMContentLoaded", async function(e) {
+            e.preventDefault();
+            
+        });
+
+        async function getLoanRecords() {
+            const username = sessionStorage.getItem('username');
 
             try {
-                const response = await fetchWithAuth('/test', {
+                const response = await fetchWithAuth('/loan-records', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({ 'username': username })
                 });
-
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
-
                 const result = await response.json();
                 console.log("Success:", result);
             } catch (error) {

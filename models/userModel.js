@@ -5,12 +5,10 @@ const userService = {
     async findUserByUsername(username) { // searches for a user in the logins collection in the database
         try {
             const response = await restdb.get(`/logins?q={"username":"${username}"}`);
-            const user = response.data[0];
-            console.log(user);
-            return user || null;
+            return response.data.length > 0 ? response.data[0] : null;
         } catch (error) {
             console.error('Error fetching user data:');
-            throw error;
+            return null;
         }
     },
     async createNewUser(username, password) {
@@ -20,11 +18,11 @@ const userService = {
             password: hashedPassword
         };
         try {
-            const postResponse = await restdb.post("/logins", userDetails);
-            console.log(`Logins collection updated: `, postResponse.data);
+            const response = await restdb.post("/logins", userDetails);
+            console.log(`Logins collection updated: `, response.data);
         } catch (error) {
             console.error('Error updating database:', error);
-            throw error; 
+            return null; 
         }
         return await this.findUserByUsername(username);
     }

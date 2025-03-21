@@ -7,11 +7,13 @@ const { generateAccessToken, generateRefreshToken, authenticateToken, verifyRefr
 
 const userService = require('./models/userModel');
 const tokenService = require('./models/tokenModel');
+const loanRecordsService = require('./models/loanRecordsModel');
 
 dotenv.config();
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
@@ -131,8 +133,25 @@ app.get('/dashboard', (req, res) => {
     res.render('dashboard');
 });
 
-app.post('/test', authenticateToken, (req, res) => {
-    res.status(200).send({ message: 'Successful' });
+app.get('/newbook', async (req, res) => {
+    const response = await loanRecordsService.saveLoanRecord('JCBIGBOY', 'Harry Potter and the Chamber of Secrets', 'JK Rowling', new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0]);
+    return response;
+});
+
+app.get('/returnbook', async (req, res) => {
+    const response = await loanRecordsService.updateLoanRecordReturnedDate('67ddef9a420df42a00002066', new Date().toISOString().split('T')[0]);
+    console.log(response);
+    return response;
+});
+
+app.get('/getbooksforuser', async (req, res) => {
+    const response1 = await loanRecordsService.getRecordsForUser('JCBIGBOY');
+    const response2 = await loanRecordsService.getRecordsForUser('Jconners');
+    const response3 = await loanRecordsService.getRecordsForUser('doesnotexist');
+    console.log(response1);
+    console.log(response2);
+    console.log(response3);
+    return true;
 });
 
 app.listen(3000, () => console.log('Server running on port 3000'));
