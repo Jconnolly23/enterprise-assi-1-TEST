@@ -1,0 +1,69 @@
+extends layouts/layout
+
+block content
+    h2 Add a New Loan
+
+    div.alert.alert-danger(role="alert" id="errorAlert" hidden)
+    div.alert.alert-success(role="alert" id="successAlert" hidden)
+
+    form#loanForm
+        div.mb-3
+            label(for="bookTitle") Book Title:
+            input#bookTitle.form-control(type="text" name="bookTitle" required)
+
+        div.mb-3
+            label(for="bookAuthor") Book Author:
+            input#bookAuthor.form-control(type="text" name="bookAuthor" required)
+
+        div.mb-3
+            label(for="loanDate") Loaned Date:
+            input#loanDate.form-control(type="date" name="loanDate" required)
+
+        div.mb-3
+            label(for="dueDate") Due Date:
+            input#dueDate.form-control(type="date" name="dueDate" required)
+        br
+
+        .d-flex.justify-content-between.mt-3
+            a.btn.btn-secondary(href="/dashboard") Back
+            button.btn.btn-primary(type="submit") Add Loan
+
+    script.
+        document.addEventListener("DOMContentLoaded", function() {
+            const loanForm = document.getElementById("loanForm");
+            const errorAlert = document.getElementById("errorAlert");
+            const successAlert = document.getElementById("successAlert");
+
+            loanForm.addEventListener("submit", async function(e) {
+                e.preventDefault();
+
+                const username = sessionStorage.getItem("username");
+                const bookTitle = document.getElementById("bookTitle").value;
+                const bookAuthor = document.getElementById("bookAuthor").value;
+                const loanDate = document.getElementById("loanDate").value;
+                const dueDate = document.getElementById("dueDate").value;
+
+                try {
+                    const response = await fetchWithAuth("/add-loan", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, bookTitle, bookAuthor, loanDate, dueDate })
+                    });
+
+                    if (!response.ok) {
+                        let result = await response.json();
+                        throw new Error(result.error);
+                    }
+
+                    successAlert.innerText = "Loan added successfully!";
+                    successAlert.hidden = false;
+                    errorAlert.hidden = true;
+                    loanForm.reset();
+
+                } catch (error) {
+                    errorAlert.innerText = "Error: " + error.message;
+                    errorAlert.hidden = false;
+                    successAlert.hidden = true;
+                }
+            });
+        });

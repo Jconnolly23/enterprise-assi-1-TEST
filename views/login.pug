@@ -1,0 +1,46 @@
+extends layouts/layout 
+
+block content
+    h2 Login
+
+    div.alert.alert-danger(role="alert" id="errorAlertLogin" hidden)
+
+    form(id="loginForm")
+        div.mb-3
+            label(for="username") Username:
+            input#username.form-control(type="text" name="username" required)
+        div.mb-3
+            label(for="password") Password:
+            input#password.form-control(type="password" name="password" required)
+        button.btn.btn-primary(type="submit") Login
+
+    br
+    p Don't have an account? 
+        a(href="/signup") Signup here
+
+    script. 
+        const loginForm = document.getElementById('loginForm');
+        loginForm.addEventListener('submit', loginFormSubmit);
+
+        async function loginFormSubmit(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const errorAlertDiv = document.getElementById('errorAlertLogin');
+
+            try {
+                const res = await axios.post('/login', { username, password });
+                if (res.data.token) {
+                    sessionStorage.setItem('accessToken', res.data.token);
+                    sessionStorage.setItem('refreshToken', res.data.refreshToken);
+                    sessionStorage.setItem('username', res.data.user);
+                    errorAlertDiv.hidden = true;
+                    window.location.href = '/dashboard';
+                }
+            } catch(error) {
+                errorAlertDiv.innerText = error.response?.data?.error; 
+                errorAlertDiv.hidden = false;
+            }
+        }

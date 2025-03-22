@@ -1,0 +1,50 @@
+extends layouts/layout 
+
+block content
+    h2 Sign Up
+
+    div.alert.alert-danger(role="alert" id="errorAlertSignup" hidden)
+
+    form(id="signupForm")
+        div.mb-3
+            label(for="username") Username:
+            input#username.form-control(type="text" name="username" required)
+        div.mb-3
+            label(for="password") Password:
+            input#password.form-control(type="password" name="password" required)
+        div.mb-3
+            label(for="confirmPassword") Confirm Password:
+            input#confirmPassword.form-control(type="password" name="confirmPassword" required)
+        button.btn.btn-primary(type="submit") Sign Up
+
+    br
+    p Already have an account? 
+        a(href="/login") Login here
+
+    script. 
+        const signupForm = document.getElementById('signupForm');
+        signupForm.addEventListener('submit', signupFormSubmit);
+
+        async function signupFormSubmit(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            const errorAlertDiv = document.getElementById('errorAlertSignup');
+
+            try {
+                const res = await axios.post('/signup', { username, password, confirmPassword });
+                if (res.data.token) {
+                    sessionStorage.setItem('accessToken', res.data.token);
+                    sessionStorage.setItem('refreshToken', res.data.refreshToken);
+                    sessionStorage.setItem('username', res.data.user);
+                    errorAlertDiv.hidden = true;
+                    window.location.href = '/dashboard';
+                }
+            } catch(error) {
+                errorAlertDiv.innerText = error.response?.data?.error; 
+                errorAlertDiv.hidden = false;
+            }
+        }
