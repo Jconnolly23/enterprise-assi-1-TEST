@@ -2,19 +2,57 @@ extends layouts/layout
 
 block content
     h2 Welcome, <span id="usernameDisplay">Guest</span>!
-    
-    a.btn.btn-danger(onclick="") Logout
-    br
-    a(href="/newbook") new book
-    br
-    a(href="/returnbook") return
-    br
-    a(href="/getbooksforuser") get books for user
+
+    .container.mt-5
+        
+        .d-flex.justify-content-between.align-items-center.mb-3
+            h2 Loaned Books
+            a.btn.btn-secondary(id="toggleViewBtn") View All
+
+        table.table.table-striped
+            thead
+                tr
+                    th Book
+                    th Loaned Date
+                    th Due Date
+                    th 
+            tbody#loansTableBody
+        br
+        
+        .d-flex.justify-content-between.mt-3
+            a.btn.btn-danger(id="logoutBtn") Logout
+            a.btn.btn-primary(href="/add-loan") Add New Loan
 
     script.
         document.addEventListener("DOMContentLoaded", async function(e) {
             e.preventDefault();
-            
+            document.getElementById('usernameDisplay').innerText = sessionStorage.getItem('username') || 'Guest';
+            document.getElementById('toggleViewBtn').value = "filtered";
+            await refreshLoanData();
+        });
+
+        document.getElementById("toggleViewBtn").addEventListener('click', async function(e) {
+            e.preventDefault();
+            const toggleViewBtn = document.getElementById("toggleViewBtn");
+            toggleViewBtn.value = toggleViewBtn.value === "filtered" ? "all" : "filtered";
+            await refreshLoanData();
+            toggleViewBtn.innerText = toggleViewBtn.innerText === "View All" ? "View Less" : "View All";
+        });
+
+        document.getElementById("logoutBtn").addEventListener('click', async function(e) {
+            const refreshToken = sessionStorage.getItem('refreshToken');
+
+            // Call the logout API before clearing sessionStorage
+            const logoutResponse = await fetch('/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken })
+            });
+
+            sessionStorage.removeItem('accessToken');
+            sessionStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('username');
+            window.location.href = '/login';
         });
 
         async function getLoanRecords() {
@@ -30,8 +68,112 @@ block content
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 const result = await response.json();
-                console.log("Success:", result);
+                return result;
             } catch (error) {
                 console.error("Error submitting data:", error);
+                return null;
             }
+        }
+
+        async function returnBook(id) {
+            try {
+                const response = await fetchWithAuth('/return-book', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {'id': id} )
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`)
+                }
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error("Error submitting data:", error);
+                return null;
+            }
+        }
+
+        async function refreshLoanData() {
+            try {
+                const loans = await getLoanRecords();
+                const tableBody = document.getElementById("loansTableBody");
+                const toggleViewBtnValue = document.getElementById("toggleViewBtn").value;
+                tableBody.innerHTML = ""; // Clear previous data
+
+                const loansArray = toggleViewBtnValue === "filtered" ? (loans ? loans.filter(loan => !loan.returned_date) : []) : loans;
+
+                await populateTableBody(tableBody, loansArray);
+            } catch (error) {
+                console.error("Error fetching loan data:", error);
+            }
+        }
+
+        async function populateTableBody(tableBody, loansArray) {
+            const today = new Date(); // Get today's date
+            today.setUTCHours(0, 0, 0, 0);
+
+            if (loansArray.length === 0) {
+                // Add a row indicating no data
+                const noDataRow = document.createElement("tr");
+                noDataRow.innerHTML = `
+                    <td colspan="4" class="text-center text-muted">No data to display</td>
+                `;
+                tableBody.appendChild(noDataRow);
+            } else {
+                loansArray.forEach(loan => {
+                    const row = createTableRow(loan, today);
+                    tableBody.appendChild(row);
+                });
+                await addEventListenersToReturnButtons(tableBody);
+            }
+        }
+
+        function createTableRow(loan, today) {
+            const dueDate = new Date(loan.due_date);
+
+            const returnedDate = loan.returned_date ? new Date(loan.returned_date) : null;
+            const isOverdue = !returnedDate && dueDate < today;
+            const isLate = returnedDate && returnedDate > dueDate;
+            const status = isLate ? '<span class="text-danger">Returned Late</span>' : (returnedDate ? '<span class="text-success">Returned</span>' : `<button class="btn btn-danger return-btn" data-id="${loan._id}">Return</button>`);
+
+            const row = document.createElement("tr");
+
+            row.innerHTML = createTableRowInnerHTML(loan, dueDate, isOverdue, status);
+            return row;
+        }
+
+        function createTableRowInnerHTML(loan, dueDate, isOverdue, status) {
+            return `
+                <td>
+                    <strong>${loan.book_title}</strong><br>
+                    <small class="text-muted">${loan.book_author}</small>
+                </td>
+                <td>${new Date(loan.loan_date).toLocaleDateString("en-GB")}</td>
+                <td>
+                    ${dueDate.toLocaleDateString("en-GB")}
+                    ${isOverdue ? '<br><span class="text-danger">Overdue</span>' : ''}
+                </td>
+                <td style="vertical-align: middle">
+                    ${status}
+                </td>
+            `;
+        }
+
+        async function addEventListenersToReturnButtons(tableBody) {
+            document.querySelectorAll('.return-btn').forEach(button => {
+                button.addEventListener('click', async function () {
+                    const loanId = this.dataset.id;
+                    const returned = await returnBook(loanId);
+                    if (!returned) {
+                        alert("Failed to return book.");
+                    } else {
+                        const today = new Date(); // Get today's date
+                        today.setUTCHours(0, 0, 0, 0);
+
+                        const currentRow = this.closest('tr');
+                        const newRow = createTableRow(returned, today);
+                        this.closest('tr').innerHTML = newRow.innerHTML; // Remove row from table
+                    }
+                });
+            });
         }

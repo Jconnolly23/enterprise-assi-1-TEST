@@ -37,7 +37,6 @@ app.post('/login', async (req, res) => {
     if (!user) {
         return res.status(400).send({ error: 'User not found' });
     }
-
     try {
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
@@ -116,8 +115,8 @@ app.post('/refresh-token', async (req, res) => {
 
 // Logout (Delete Refresh Token)
 app.post('/logout', async (req, res) => {
-    const tokenDeleted = await tokenService.deleteRefreshToken(req.body.refreshToken);
     try {
+        const tokenDeleted = await tokenService.deleteRefreshToken(req.body.refreshToken);
         if (!tokenDeleted) {
             return res.status(400).json({ error: 'There was an issue logging you out' });
         }
@@ -133,25 +132,37 @@ app.get('/dashboard', (req, res) => {
     res.render('dashboard');
 });
 
-app.get('/newbook', async (req, res) => {
-    const response = await loanRecordsService.saveLoanRecord('JCBIGBOY', 'Harry Potter and the Chamber of Secrets', 'JK Rowling', new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0]);
-    return response;
+app.post('/add-loan', authenticateToken, async (req, res) => {
+    try {
+        const { username, bookTitle, bookAuthor, loanDate, dueDate } = req.body;
+        const response = await loanRecordsService.saveLoanRecord(username, bookTitle, bookAuthor, loanDate, dueDate);
+        return res.status(200).json(response);
+    } catch (err) {
+        console.error('Error adding loan to database:', err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 
-app.get('/returnbook', async (req, res) => {
-    const response = await loanRecordsService.updateLoanRecordReturnedDate('67ddef9a420df42a00002066', new Date().toISOString().split('T')[0]);
-    console.log(response);
-    return response;
+app.post('/return-book', authenticateToken, async (req, res) => {
+    try {
+        const response = await loanRecordsService.updateLoanRecordReturnedDate(req.body.id, new Date().toISOString().split('T')[0]);
+        console.log(response);
+        return res.status(200).json(response);
+    } catch (err) {
+        console.error('Error updating record in database', err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 
-app.get('/getbooksforuser', async (req, res) => {
-    const response1 = await loanRecordsService.getRecordsForUser('JCBIGBOY');
-    const response2 = await loanRecordsService.getRecordsForUser('Jconners');
-    const response3 = await loanRecordsService.getRecordsForUser('doesnotexist');
-    console.log(response1);
-    console.log(response2);
-    console.log(response3);
-    return true;
+app.post('/loan-records', authenticateToken, async (req, res) => {
+    try {
+        const response = await loanRecordsService.getRecordsForUser(req.body.username);
+        console.log(response);
+        return res.status(200).json(response);
+    } catch (err) {
+        console.error('Error updating record in database', err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 
 app.listen(3000, () => console.log('Server running on port 3000'));
